@@ -149,7 +149,7 @@ async function sendInteractionResult(interaction, language, formattedCode) {
   const codeBlock = makeCodeBlock(language, formattedCode);
 
   if (codeBlock.length <= DISCORD_MESSAGE_LIMIT) {
-    await interaction.editReply(codeBlock);
+    await interaction.reply(codeBlock);
     return;
   }
 
@@ -157,10 +157,21 @@ async function sendInteractionResult(interaction, language, formattedCode) {
     name: `formatted.${language === 'cpp' ? 'cpp' : language}.txt`
   });
 
-  await interaction.editReply({
+  await interaction.reply({
     content: '포맷 결과가 너무 길어서 파일로 첨부합니다.',
     files: [attachment]
   });
+}
+
+async function sendMessageFormatFailure(message, error) {
+  const content = `포맷에 실패했습니다: ${summarizeError(error)}`;
+
+  try {
+    await message.author.send(content);
+    await message.react('⚠️');
+  } catch {
+    await message.reply('포맷에 실패했습니다. 개인 메시지를 받을 수 없어 오류 내용은 공개하지 않았습니다.');
+  }
 }
 
 async function registerSlashCommands() {
@@ -221,7 +232,7 @@ client.on('messageCreate', async (message) => {
 
     await sendFormattedResult(message, language, formattedCode);
   } catch (error) {
-    await message.reply(`포맷에 실패했습니다: ${summarizeError(error)}`);
+    await sendMessageFormatFailure(message, error);
   }
 });
 
@@ -234,28 +245,38 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const code = extractCode(interaction.options.getString('code', true));
 
   if (!language) {
-    await interaction.reply('지원하지 않는 언어입니다');
+    await interaction.reply({
+      content: '지원하지 않는 언어입니다',
+      ephemeral: true
+    });
     return;
   }
 
   if (!code.trim()) {
-    await interaction.reply('포맷할 코드를 함께 입력해주세요.');
+    await interaction.reply({
+      content: '포맷할 코드를 함께 입력해주세요.',
+      ephemeral: true
+    });
     return;
   }
-
-  await interaction.deferReply();
 
   try {
     const formattedCode = await formatCode(code, language);
 
     if (formattedCode === null) {
-      await interaction.editReply('지원하지 않는 언어입니다');
+      await interaction.reply({
+        content: '지원하지 않는 언어입니다',
+        ephemeral: true
+      });
       return;
     }
 
     await sendInteractionResult(interaction, language, formattedCode);
   } catch (error) {
-    await interaction.editReply(`포맷에 실패했습니다: ${summarizeError(error)}`);
+    await interaction.reply({
+      content: `포맷에 실패했습니다: ${summarizeError(error)}`,
+      ephemeral: true
+    });
   }
 });
 
