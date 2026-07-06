@@ -1,0 +1,7 @@
+services:
+  - type: worker
+    name: discord-code-format-bot
+    runtime: docker
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
