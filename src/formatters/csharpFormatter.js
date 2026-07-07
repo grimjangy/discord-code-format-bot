@@ -71,6 +71,51 @@ function shouldTryWrappedMethod(error, code) {
   );
 }
 
+function findMatchingBrace(code, openBraceIndex) {
+  let depth = 0;
+
+  for (let index = openBraceIndex; index < code.length; index += 1) {
+    const character = code[index];
+
+    if (character === '{') {
+      depth += 1;
+    } else if (character === '}') {
+      depth -= 1;
+
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+
+  return -1;
+}
+
+function wrapBareClassBodyInRunMethod(code) {
+  const classMatch = code.match(/\b(?:public|private|internal|protected|sealed|abstract|static|\s)*class\s+\w[^{]*\{/);
+
+  if (!classMatch || classMatch.index === undefined) {
+    return null;
+  }
+
+  const openBraceIndex = classMatch.index + classMatch[0].lastIndexOf('{');
+  const closeBraceIndex = findMatchingBrace(code, openBraceIndex);
+
+  if (closeBraceIndex === -1) {
+    return null;
+  }
+
+  const beforeBody = code.slice(0, openBraceIndex + 1);
+  const body = code.slice(openBraceIndex + 1, closeBraceIndex).trim();
+  const afterBody = code.slice(closeBraceIndex);
+
+  if (!body || /\b(?:void|int|string|bool|float|double|decimal|var|Task|IEnumerator|IEnumerable)\s+\w+\s*\([^)]*\)\s*\{/.test(body)) {
+    return null;
+  }
+
+  return `${beforeBody}\n    public void Run()\n    {\n${body}\n    }\n${afterBody}`;
+}
+
 function unwrapFormattedClass(formattedCode) {
   const lines = formattedCode.replace(/\r\n/g, '\n').split('\n');
   const classLineIndex = lines.findIndex((line) => line.includes('__DiscordFmtWrapper'));
@@ -147,6 +192,16 @@ async function formatCSharp(code) {
       firstError = error;
 
       if (!shouldTryWrappedClass(error, code)) {
+        const classBodyWrappedCode = wrapBareClassBodyInRunMethod(code);
+
+        if (classBodyWrappedCode) {
+          try {
+            return await formatFile(tempFile, classBodyWrappedCode);
+          } catch {
+            // Fall through to the snippet wrappers below.
+          }
+        }
+
         if (!shouldTryWrappedMethod(error, code)) {
           throw error;
         }
