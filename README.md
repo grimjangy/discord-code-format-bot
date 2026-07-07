@@ -135,6 +135,9 @@ C#도 같은 방식으로 사용할 수 있습니다.
 public class Hello{public void Run(){Console.WriteLine("hello");}}
 ```
 
+C# 입력이 완전한 파일이 아니라 메서드 조각이나 실행문 조각이면, 포매터가 안전한 임시 class/method로 감싸서 한 번 더 시도합니다.
+예를 들어 class 본문에 `Console.WriteLine(...)` 같은 실행문을 바로 넣으면 C# 문법상 오류이므로, 결과에 설명 주석을 남기고 `Run()` 메서드 안으로 이동합니다.
+
 슬래시 명령어도 지원합니다. Discord 입력창에서 `/fmt`를 입력하면 언어 선택 목록이 나타납니다.
 
 ```text

@@ -113,7 +113,7 @@ function wrapBareClassBodyInRunMethod(code) {
     return null;
   }
 
-  return `${beforeBody}\n    public void Run()\n    {\n${body}\n    }\n${afterBody}`;
+  return `${beforeBody}\n    // AutoFormat: C# class bodies cannot contain statements directly, so these statements were moved into Run().\n    public void Run()\n    {\n${body}\n    }\n${afterBody}`;
 }
 
 function unwrapFormattedClass(formattedCode) {
