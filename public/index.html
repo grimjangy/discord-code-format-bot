@@ -126,7 +126,7 @@
         <div class="brand">AutoFormat IDE</div>
         <select id="language"></select>
         <button class="primary" id="formatButton">Format</button>
-        <button id="completeButton">API Complete</button>
+        <button id="completeButton">Complete</button>
       </header>
       <section id="editor"></section>
       <footer class="status" id="status">Ready</footer>
@@ -255,6 +255,7 @@
         formatButton.addEventListener('click', formatCode);
         completeButton.addEventListener('click', completeCode);
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, formatCode);
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, completeCode);
       });
     </script>
   </body>

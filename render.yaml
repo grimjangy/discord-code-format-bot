@@ -9,3 +9,9 @@ services:
         sync: false
       - key: FORMAT_PRINT_WIDTH
         value: "60"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.2-mini
+      - key: COMPLETION_MAX_TOKENS
+        value: "160"
