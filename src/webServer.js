@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('node:path');
 const { AttachmentBuilder } = require('discord.js');
 const {
+  extractCode,
   formatCode,
   makeCodeBlock,
   normalizeLanguage,
@@ -177,7 +178,7 @@ function startWebServer({ discordClient } = {}) {
 
   app.post('/api/format', async (req, res) => {
     const language = normalizeLanguage(String(req.body.language || ''));
-    const code = String(req.body.code || '');
+    const code = extractCode(String(req.body.code || ''));
 
     if (!language) {
       res.status(400).json({ error: '지원하지 않는 언어입니다' });
@@ -200,7 +201,7 @@ function startWebServer({ discordClient } = {}) {
 
   app.post('/api/complete', async (req, res) => {
     const language = normalizeLanguage(String(req.body.language || ''));
-    const code = String(req.body.code || '');
+    const code = extractCode(String(req.body.code || ''));
     const cursorOffset = Number.parseInt(req.body.cursorOffset || '0', 10);
 
     if (!language) {
@@ -218,7 +219,7 @@ function startWebServer({ discordClient } = {}) {
   app.post('/api/discord/send', async (req, res) => {
     const language = normalizeLanguage(String(req.body.language || ''));
     const channelId = String(req.body.channelId || '').trim();
-    const code = String(req.body.code || '');
+    const code = extractCode(String(req.body.code || ''));
     const shouldFormat = req.body.format !== false;
     const secret = String(req.headers['x-web-send-secret'] || req.body.secret || '');
 

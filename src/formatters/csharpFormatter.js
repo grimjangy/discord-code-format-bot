@@ -50,13 +50,24 @@ async function runCSharpier(filePath) {
   }
 }
 
-function shouldTryWrappedClass(error, code) {
+function isMissingToolError(error) {
   const message = error?.message || '';
+  return message.includes('CSharpier 또는 .NET SDK');
+}
 
+function shouldTryWrappedClass(error, code) {
   return (
     !/\b(class|struct|record|interface|namespace)\b/.test(code) &&
     /[A-Za-z_][\w<>,\s\[\]]+\s+[A-Za-z_]\w*\s*\([^)]*\)\s*\{/.test(code) &&
-    !message.includes('CSharpier 또는 .NET SDK')
+    !isMissingToolError(error)
+  );
+}
+
+function shouldTryWrappedMethod(error, code) {
+  return (
+    !isMissingToolError(error) &&
+    !/\b(class|struct|record|interface|namespace)\b/.test(code) &&
+    !/[A-Za-z_][\w<>,\s\[\]]+\s+[A-Za-z_]\w*\s*\([^)]*\)\s*\{/.test(code)
   );
 }
 
@@ -87,6 +98,34 @@ function unwrapFormattedClass(formattedCode) {
   return bodyLines.join('\n').trimEnd() + '\n';
 }
 
+function unwrapFormattedMethod(formattedCode) {
+  const classBody = unwrapFormattedClass(formattedCode);
+  const lines = classBody.replace(/\r\n/g, '\n').split('\n');
+  const methodLineIndex = lines.findIndex((line) => line.includes('__DiscordFmtMethod'));
+  const openBraceIndex = lines.findIndex((line, index) => index > methodLineIndex && line.trim() === '{');
+
+  if (methodLineIndex === -1 || openBraceIndex === -1) {
+    return classBody;
+  }
+
+  const bodyLines = [];
+  let depth = 1;
+
+  for (const line of lines.slice(openBraceIndex + 1)) {
+    const opens = (line.match(/\{/g) || []).length;
+    const closes = (line.match(/\}/g) || []).length;
+
+    if (depth === 1 && line.trim() === '}') {
+      break;
+    }
+
+    bodyLines.push(line.replace(/^ {4}/, ''));
+    depth += opens - closes;
+  }
+
+  return bodyLines.join('\n').trimEnd() + '\n';
+}
+
 async function formatFile(tempFile, code) {
   await writeFile(tempFile, code, 'utf8');
   await runCSharpier(tempFile);
@@ -97,6 +136,7 @@ async function formatCSharp(code) {
   const tempDir = await mkdtemp(join(tmpdir(), 'discord-fmt-csharp-'));
   const tempFile = join(tempDir, 'Input.cs');
   const configFile = join(tempDir, '.csharpierrc');
+  let firstError;
 
   try {
     await writeFile(configFile, JSON.stringify({ printWidth: getPrintWidth() }), 'utf8');
@@ -104,13 +144,31 @@ async function formatCSharp(code) {
     try {
       return await formatFile(tempFile, code);
     } catch (error) {
+      firstError = error;
+
       if (!shouldTryWrappedClass(error, code)) {
-        throw error;
+        if (!shouldTryWrappedMethod(error, code)) {
+          throw error;
+        }
+
+        const wrappedCode = `public class __DiscordFmtWrapper\n{\n    public void __DiscordFmtMethod()\n    {\n${code}\n    }\n}\n`;
+        const formattedCode = await formatFile(tempFile, wrappedCode);
+        return unwrapFormattedMethod(formattedCode);
       }
 
-      const wrappedCode = `public class __DiscordFmtWrapper\n{\n${code}\n}\n`;
-      const formattedCode = await formatFile(tempFile, wrappedCode);
-      return unwrapFormattedClass(formattedCode);
+      try {
+        const wrappedCode = `public class __DiscordFmtWrapper\n{\n${code}\n}\n`;
+        const formattedCode = await formatFile(tempFile, wrappedCode);
+        return unwrapFormattedClass(formattedCode);
+      } catch (wrappedClassError) {
+        if (!shouldTryWrappedMethod(firstError, code)) {
+          throw wrappedClassError;
+        }
+
+        const wrappedCode = `public class __DiscordFmtWrapper\n{\n    public void __DiscordFmtMethod()\n    {\n${code}\n    }\n}\n`;
+        const formattedCode = await formatFile(tempFile, wrappedCode);
+        return unwrapFormattedMethod(formattedCode);
+      }
     }
   } finally {
     await rm(tempDir, { force: true, recursive: true });
