@@ -2,7 +2,6 @@ require('dotenv').config();
 
 const {
   ApplicationCommandOptionType,
-  AttachmentBuilder,
   Client,
   Events,
   GatewayIntentBits
@@ -10,14 +9,12 @@ const {
 const {
   extractCode,
   formatCode,
-  makeCodeBlock,
   normalizeLanguage,
   summarizeError,
   supportedLanguages
 } = require('./formatService');
-const { startWebServer } = require('./webServer');
+const { createDiscordPayload, startWebServer } = require('./webServer');
 
-const DISCORD_MESSAGE_LIMIT = 2000;
 const COMMAND_PATTERN = /^!fmt\s+([^\s]+)\s*([\s\S]*)$/;
 const SLASH_COMMANDS = [
   {
@@ -46,39 +43,11 @@ const SLASH_COMMANDS = [
 ];
 
 async function sendFormattedResult(message, language, formattedCode) {
-  const codeBlock = makeCodeBlock(language, formattedCode);
-
-  if (codeBlock.length <= DISCORD_MESSAGE_LIMIT) {
-    await message.reply(codeBlock);
-    return;
-  }
-
-  const attachment = new AttachmentBuilder(Buffer.from(formattedCode, 'utf8'), {
-    name: `formatted.${language === 'cpp' ? 'cpp' : language}.txt`
-  });
-
-  await message.reply({
-    content: '포맷 결과가 너무 길어서 파일로 첨부합니다.',
-    files: [attachment]
-  });
+  await message.reply(createDiscordPayload(language, formattedCode));
 }
 
 async function sendInteractionResult(interaction, language, formattedCode) {
-  const codeBlock = makeCodeBlock(language, formattedCode);
-
-  if (codeBlock.length <= DISCORD_MESSAGE_LIMIT) {
-    await interaction.reply(codeBlock);
-    return;
-  }
-
-  const attachment = new AttachmentBuilder(Buffer.from(formattedCode, 'utf8'), {
-    name: `formatted.${language === 'cpp' ? 'cpp' : language}.txt`
-  });
-
-  await interaction.reply({
-    content: '포맷 결과가 너무 길어서 파일로 첨부합니다.',
-    files: [attachment]
-  });
+  await interaction.reply(createDiscordPayload(language, formattedCode));
 }
 
 async function sendMessageFormatFailure(message, error) {
@@ -222,7 +191,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 const token = process.env.DISCORD_TOKEN;
 
-startWebServer();
+startWebServer({ discordClient: client });
 
 if (!token) {
   console.error('DISCORD_TOKEN이 없어 Discord 봇 로그인은 건너뜁니다. 웹 IDE만 실행됩니다.');

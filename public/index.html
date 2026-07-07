@@ -7,13 +7,15 @@
     <style>
       :root {
         color-scheme: dark;
-        --bg: #111318;
-        --panel: #191c23;
-        --text: #edf0f7;
-        --muted: #9aa3b2;
-        --line: #2a2f3a;
-        --accent: #55c2ff;
-        --danger: #ff6b6b;
+        --bg: #101114;
+        --panel: #181b21;
+        --field: #0d0f13;
+        --text: #f2f4f8;
+        --muted: #9ba5b4;
+        --line: #303641;
+        --accent: #4cc38a;
+        --accent-strong: #74d6ff;
+        --danger: #ff7171;
       }
 
       * {
@@ -38,20 +40,21 @@
         align-items: center;
         background: var(--panel);
         border-bottom: 1px solid var(--line);
-        display: flex;
-        gap: 10px;
-        min-height: 56px;
-        padding: 10px 14px;
+        display: grid;
+        gap: 9px;
+        grid-template-columns: auto minmax(120px, 150px) minmax(150px, 1fr) minmax(110px, 150px) repeat(4, auto);
+        min-height: 58px;
+        padding: 10px 12px;
       }
 
       .brand {
         font-size: 15px;
-        font-weight: 700;
-        margin-right: 8px;
+        font-weight: 800;
         white-space: nowrap;
       }
 
       select,
+      input,
       button {
         border: 1px solid var(--line);
         border-radius: 6px;
@@ -60,23 +63,30 @@
         height: 36px;
       }
 
-      select {
-        background: #101219;
-        min-width: 150px;
+      select,
+      input {
+        background: var(--field);
+        min-width: 0;
         padding: 0 10px;
       }
 
       button {
-        background: #202532;
+        background: #222833;
         cursor: pointer;
-        padding: 0 13px;
+        padding: 0 12px;
+        white-space: nowrap;
       }
 
       button.primary {
         background: var(--accent);
         border-color: var(--accent);
-        color: #06131c;
-        font-weight: 700;
+        color: #04110a;
+        font-weight: 800;
+      }
+
+      button.send {
+        border-color: var(--accent-strong);
+        color: var(--accent-strong);
       }
 
       button:disabled {
@@ -95,6 +105,7 @@
         color: var(--muted);
         display: flex;
         font-size: 13px;
+        gap: 8px;
         min-height: 34px;
         padding: 7px 14px;
       }
@@ -103,19 +114,23 @@
         color: var(--danger);
       }
 
-      @media (max-width: 720px) {
+      .status a {
+        color: var(--accent-strong);
+      }
+
+      @media (max-width: 980px) {
         .toolbar {
-          align-items: stretch;
-          flex-wrap: wrap;
+          grid-template-columns: 1fr 1fr;
         }
 
         .brand {
-          width: 100%;
+          grid-column: 1 / -1;
         }
+      }
 
-        select,
-        button {
-          flex: 1 1 140px;
+      @media (max-width: 560px) {
+        .toolbar {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -125,8 +140,12 @@
       <header class="toolbar">
         <div class="brand">AutoFormat IDE</div>
         <select id="language"></select>
+        <input id="channelId" inputmode="numeric" placeholder="Discord channel ID" />
+        <input id="sendSecret" type="password" placeholder="Send secret" />
         <button class="primary" id="formatButton">Format</button>
-        <button id="completeButton">Complete</button>
+        <button id="suggestButton">Suggest</button>
+        <button class="send" id="sendButton">Send</button>
+        <button id="copyButton">Copy</button>
       </header>
       <section id="editor"></section>
       <footer class="status" id="status">Ready</footer>
@@ -136,14 +155,418 @@
     <script>
       const statusElement = document.querySelector('#status');
       const languageSelect = document.querySelector('#language');
+      const channelIdInput = document.querySelector('#channelId');
+      const sendSecretInput = document.querySelector('#sendSecret');
       const formatButton = document.querySelector('#formatButton');
-      const completeButton = document.querySelector('#completeButton');
+      const suggestButton = document.querySelector('#suggestButton');
+      const sendButton = document.querySelector('#sendButton');
+      const copyButton = document.querySelector('#copyButton');
       let editor;
       let languages = [];
+      let completionProviderDisposables = [];
 
-      function setStatus(message, isError = false) {
-        statusElement.textContent = message;
+      const completionData = {
+        js: {
+          words: [
+            'Array',
+            'Boolean',
+            'Date',
+            'Error',
+            'JSON',
+            'Map',
+            'Math',
+            'Number',
+            'Object',
+            'Promise',
+            'RegExp',
+            'Set',
+            'String',
+            'Symbol',
+            'WeakMap',
+            'WeakSet',
+            'addEventListener',
+            'appendChild',
+            'async',
+            'await',
+            'break',
+            'case',
+            'catch',
+            'class',
+            'console',
+            'const',
+            'continue',
+            'document',
+            'else',
+            'export',
+            'extends',
+            'fetch',
+            'finally',
+            'for',
+            'forEach',
+            'function',
+            'getElementById',
+            'if',
+            'import',
+            'includes',
+            'let',
+            'localStorage',
+            'map',
+            'module',
+            'new',
+            'null',
+            'querySelector',
+            'reduce',
+            'require',
+            'return',
+            'setInterval',
+            'setTimeout',
+            'switch',
+            'throw',
+            'try',
+            'undefined',
+            'window'
+          ],
+          snippets: [
+            ['if', 'if (${1:condition}) {\n  ${0}\n}'],
+            ['for', 'for (let ${1:i} = 0; ${1:i} < ${2:length}; ${1:i}++) {\n  ${0}\n}'],
+            ['fn', 'function ${1:name}(${2:args}) {\n  ${0}\n}'],
+            ['asyncfn', 'async function ${1:name}(${2:args}) {\n  ${0}\n}'],
+            ['try', 'try {\n  ${1}\n} catch (${2:error}) {\n  ${0}\n}']
+          ]
+        },
+        ts: {
+          words: [
+            'Array',
+            'Awaited',
+            'Boolean',
+            'Date',
+            'Error',
+            'Exclude',
+            'Extract',
+            'Map',
+            'NonNullable',
+            'Omit',
+            'Partial',
+            'Pick',
+            'Promise',
+            'Readonly',
+            'Record',
+            'Required',
+            'ReturnType',
+            'Set',
+            'String',
+            'async',
+            'await',
+            'boolean',
+            'class',
+            'const',
+            'enum',
+            'export',
+            'extends',
+            'function',
+            'implements',
+            'import',
+            'interface',
+            'keyof',
+            'let',
+            'namespace',
+            'never',
+            'number',
+            'private',
+            'protected',
+            'public',
+            'readonly',
+            'return',
+            'string',
+            'type',
+            'unknown',
+            'void'
+          ],
+          snippets: [
+            ['interface', 'interface ${1:Name} {\n  ${0}\n}'],
+            ['type', 'type ${1:Name} = {\n  ${0}\n};'],
+            ['class', 'class ${1:Name} {\n  constructor(${2}) {\n    ${0}\n  }\n}'],
+            ['asyncfn', 'async function ${1:name}(${2:args}): Promise<${3:void}> {\n  ${0}\n}']
+          ]
+        },
+        html: {
+          words: [
+            'a',
+            'article',
+            'aside',
+            'button',
+            'canvas',
+            'class',
+            'data-',
+            'div',
+            'footer',
+            'form',
+            'h1',
+            'h2',
+            'header',
+            'href',
+            'id',
+            'img',
+            'input',
+            'label',
+            'li',
+            'link',
+            'main',
+            'meta',
+            'nav',
+            'ol',
+            'option',
+            'script',
+            'section',
+            'select',
+            'span',
+            'src',
+            'style',
+            'textarea',
+            'type',
+            'ul'
+          ],
+          snippets: [
+            ['html5', '<!doctype html>\n<html lang="${1:ko}">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>${2:Document}</title>\n  </head>\n  <body>\n    ${0}\n  </body>\n</html>'],
+            ['button', '<button type="button">${1:Button}</button>'],
+            ['input', '<input type="${1:text}" name="${2:name}" />']
+          ]
+        },
+        css: {
+          words: [
+            'align-items',
+            'animation',
+            'background',
+            'border',
+            'border-radius',
+            'box-shadow',
+            'box-sizing',
+            'color',
+            'display',
+            'flex',
+            'font-family',
+            'font-size',
+            'font-weight',
+            'gap',
+            'grid',
+            'grid-template-columns',
+            'height',
+            'justify-content',
+            'line-height',
+            'margin',
+            'max-width',
+            'min-height',
+            'opacity',
+            'overflow',
+            'padding',
+            'position',
+            'transform',
+            'transition',
+            'width',
+            'z-index'
+          ],
+          snippets: [
+            ['flex', 'display: flex;\nalign-items: ${1:center};\njustify-content: ${2:center};'],
+            ['grid', 'display: grid;\ngrid-template-columns: ${1:repeat(3, 1fr)};\ngap: ${2:16px};'],
+            ['media', '@media (max-width: ${1:720px}) {\n  ${0}\n}']
+          ]
+        },
+        json: {
+          words: ['false', 'null', 'true'],
+          snippets: [
+            ['object', '{\n  "${1:key}": ${2:value}\n}'],
+            ['array', '[\n  ${1}\n]']
+          ]
+        },
+        py: {
+          words: [
+            'False',
+            'None',
+            'True',
+            'and',
+            'as',
+            'async',
+            'await',
+            'break',
+            'class',
+            'continue',
+            'def',
+            'dict',
+            'elif',
+            'else',
+            'except',
+            'finally',
+            'for',
+            'from',
+            'if',
+            'import',
+            'in',
+            'is',
+            'lambda',
+            'len',
+            'list',
+            'not',
+            'or',
+            'pass',
+            'print',
+            'range',
+            'return',
+            'self',
+            'set',
+            'str',
+            'try',
+            'tuple',
+            'while',
+            'with',
+            'yield'
+          ],
+          snippets: [
+            ['def', 'def ${1:name}(${2:args}):\n    ${0}'],
+            ['class', 'class ${1:Name}:\n    def __init__(self${2}):\n        ${0}'],
+            ['ifmain', 'if __name__ == "__main__":\n    ${0}'],
+            ['try', 'try:\n    ${1}\nexcept ${2:Exception} as ${3:error}:\n    ${0}']
+          ]
+        },
+        c: {
+          words: [
+            'NULL',
+            'break',
+            'case',
+            'char',
+            'const',
+            'continue',
+            'default',
+            'double',
+            'else',
+            'enum',
+            'float',
+            'for',
+            'free',
+            'if',
+            'include',
+            'int',
+            'long',
+            'malloc',
+            'printf',
+            'return',
+            'sizeof',
+            'static',
+            'struct',
+            'switch',
+            'typedef',
+            'void',
+            'while'
+          ],
+          snippets: [
+            ['main', 'int main(void) {\n  ${0}\n  return 0;\n}'],
+            ['include', '#include <${1:stdio.h}>'],
+            ['for', 'for (int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n  ${0}\n}']
+          ]
+        },
+        cpp: {
+          words: [
+            'auto',
+            'bool',
+            'break',
+            'case',
+            'class',
+            'const',
+            'cout',
+            'endl',
+            'false',
+            'for',
+            'include',
+            'int',
+            'namespace',
+            'private',
+            'protected',
+            'public',
+            'return',
+            'std',
+            'string',
+            'template',
+            'true',
+            'using',
+            'vector',
+            'void',
+            'while'
+          ],
+          snippets: [
+            ['main', 'int main() {\n  ${0}\n  return 0;\n}'],
+            ['class', 'class ${1:Name} {\n public:\n  ${1:Name}();\n\n private:\n  ${0}\n};'],
+            ['for', 'for (int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n  ${0}\n}']
+          ]
+        },
+        cs: {
+          words: [
+            'Awake',
+            'Console',
+            'Debug',
+            'Destroy',
+            'FixedUpdate',
+            'GameObject',
+            'GetComponent',
+            'Instance',
+            'List',
+            'MonoBehaviour',
+            'SerializeField',
+            'Start',
+            'String',
+            'Transform',
+            'Update',
+            'Vector2',
+            'Vector3',
+            'bool',
+            'break',
+            'class',
+            'const',
+            'else',
+            'false',
+            'float',
+            'for',
+            'foreach',
+            'gameObject',
+            'if',
+            'int',
+            'namespace',
+            'new',
+            'null',
+            'private',
+            'protected',
+            'public',
+            'readonly',
+            'return',
+            'static',
+            'string',
+            'this',
+            'true',
+            'using',
+            'var',
+            'void'
+          ],
+          snippets: [
+            ['class', 'public class ${1:Name}\n{\n    ${0}\n}'],
+            ['mono', 'using UnityEngine;\n\npublic class ${1:Name} : MonoBehaviour\n{\n    private void Start()\n    {\n        ${0}\n    }\n}'],
+            ['awake', 'private void Awake()\n{\n    ${0}\n}'],
+            ['singleton', 'public static ${1:ClassName} Instance { get; private set; }\n\nprivate void Awake()\n{\n    if (Instance != null)\n    {\n        Destroy(gameObject);\n        return;\n    }\n\n    Instance = this;\n}']
+          ]
+        }
+      };
+
+      function setStatus(message, isError = false, linkUrl = '') {
         statusElement.classList.toggle('error', isError);
+        statusElement.textContent = '';
+        statusElement.append(document.createTextNode(message));
+
+        if (linkUrl) {
+          const link = document.createElement('a');
+          link.href = linkUrl;
+          link.target = '_blank';
+          link.rel = 'noreferrer';
+          link.textContent = 'Open message';
+          statusElement.append(document.createTextNode(' '));
+          statusElement.append(link);
+        }
       }
 
       async function requestJson(url, body) {
@@ -174,6 +597,37 @@
           .join('');
       }
 
+      function completionItemsFor(languageValue) {
+        const data = completionData[languageValue] || { words: [], snippets: [] };
+        const wordItems = data.words.map((word) => ({
+          label: word,
+          kind: monaco.languages.CompletionItemKind.Keyword,
+          insertText: word
+        }));
+        const snippetItems = data.snippets.map(([label, insertText]) => ({
+          label,
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText,
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+        }));
+
+        return [...snippetItems, ...wordItems];
+      }
+
+      function registerCompletionProviders() {
+        completionProviderDisposables.forEach((disposable) => disposable.dispose());
+        completionProviderDisposables = languages.map((language) =>
+          monaco.languages.registerCompletionItemProvider(language.editorLanguage, {
+            triggerCharacters: ['.', ':', '<', '#', '@', '$'],
+            provideCompletionItems() {
+              return {
+                suggestions: completionItemsFor(language.value)
+              };
+            }
+          })
+        );
+      }
+
       async function formatCode() {
         formatButton.disabled = true;
         setStatus('Formatting...');
@@ -185,49 +639,73 @@
           });
           editor.setValue(data.code);
           setStatus('Formatted');
+          return data.code;
         } catch (error) {
           setStatus(error.message, true);
+          return null;
         } finally {
           formatButton.disabled = false;
         }
       }
 
-      async function completeCode() {
-        completeButton.disabled = true;
-        setStatus('Requesting completion...');
+      function triggerSuggest() {
+        editor.focus();
+        editor.trigger('dictionary', 'editor.action.triggerSuggest', {});
+        setStatus('Suggestions opened');
+      }
+
+      async function sendToDiscord() {
+        const channelId = channelIdInput.value.trim();
+
+        if (!channelId) {
+          setStatus('Discord channel ID를 입력해주세요.', true);
+          return;
+        }
+
+        sendButton.disabled = true;
+        setStatus('Sending...');
 
         try {
-          const model = editor.getModel();
-          const position = editor.getPosition();
-          const cursorOffset = model.getOffsetAt(position);
-          const data = await requestJson('/api/complete', {
+          const data = await requestJson('/api/discord/send', {
             language: languageSelect.value,
+            channelId,
+            secret: sendSecretInput.value,
             code: editor.getValue(),
-            cursorOffset
+            format: true
           });
-
-          if (!data.completion) {
-            setStatus(data.message || 'No completion returned', true);
-            return;
-          }
-
-          editor.executeEdits('api-complete', [
-            {
-              range: new monaco.Range(
-                position.lineNumber,
-                position.column,
-                position.lineNumber,
-                position.column
-              ),
-              text: data.completion
-            }
-          ]);
-          setStatus('Completion inserted');
+          localStorage.setItem('autoformat.channelId', channelId);
+          localStorage.setItem('autoformat.sendSecret', sendSecretInput.value);
+          setStatus('Sent to Discord', false, data.messageUrl);
         } catch (error) {
           setStatus(error.message, true);
         } finally {
-          completeButton.disabled = false;
+          sendButton.disabled = false;
         }
+      }
+
+      async function copyCode() {
+        await navigator.clipboard.writeText(editor.getValue());
+        setStatus('Copied');
+      }
+
+      async function loadSharedCodeIfNeeded() {
+        const match = window.location.pathname.match(/^\/s\/([^/]+)$/);
+
+        if (!match) {
+          return false;
+        }
+
+        const response = await fetch(`/api/share/${match[1]}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || '공유 코드를 열 수 없습니다.');
+        }
+
+        languageSelect.value = data.language;
+        monaco.editor.setModelLanguage(editor.getModel(), selectedLanguage().editorLanguage);
+        editor.setValue(data.code);
+        return true;
       }
 
       require.config({
@@ -238,24 +716,48 @@
 
       require(['vs/editor/editor.main'], async () => {
         await loadLanguages();
+        registerCompletionProviders();
+
+        channelIdInput.value = localStorage.getItem('autoformat.channelId') || '';
+        sendSecretInput.value = localStorage.getItem('autoformat.sendSecret') || '';
 
         editor = monaco.editor.create(document.querySelector('#editor'), {
           automaticLayout: true,
           fontSize: 14,
           language: selectedLanguage().editorLanguage,
           minimap: { enabled: false },
+          quickSuggestions: true,
+          snippetSuggestions: 'top',
+          suggestOnTriggerCharacters: true,
+          tabCompletion: 'on',
           theme: 'vs-dark',
-          value: 'if(true){\\nconsole.log(\"hello\")\\n}\\n'
+          value: 'if(true){\nconsole.log("hello")\n}\n',
+          wordBasedSuggestions: 'allDocuments',
+          wordWrap: 'on',
+          wrappingIndent: 'same'
         });
+
+        try {
+          const loadedShare = await loadSharedCodeIfNeeded();
+
+          if (loadedShare) {
+            setStatus('Shared code opened');
+          }
+        } catch (error) {
+          setStatus(error.message, true);
+        }
 
         languageSelect.addEventListener('change', () => {
           monaco.editor.setModelLanguage(editor.getModel(), selectedLanguage().editorLanguage);
+          triggerSuggest();
         });
 
         formatButton.addEventListener('click', formatCode);
-        completeButton.addEventListener('click', completeCode);
+        suggestButton.addEventListener('click', triggerSuggest);
+        sendButton.addEventListener('click', sendToDiscord);
+        copyButton.addEventListener('click', copyCode);
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, formatCode);
-        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, completeCode);
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, triggerSuggest);
       });
     </script>
   </body>

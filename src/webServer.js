@@ -1,6 +1,16 @@
 const express = require('express');
 const path = require('node:path');
-const { formatCode, normalizeLanguage, summarizeError, supportedLanguages } = require('./formatService');
+const { AttachmentBuilder } = require('discord.js');
+const {
+  formatCode,
+  makeCodeBlock,
+  normalizeLanguage,
+  summarizeError,
+  supportedLanguages
+} = require('./formatService');
+const { createShare, getShare, makeEditorUrl } = require('./shareStore');
+
+const DISCORD_MESSAGE_LIMIT = 2000;
 
 const editorLanguageByValue = Object.fromEntries(
   supportedLanguages.map(({ value, editorLanguage }) => [value, editorLanguage])
@@ -104,7 +114,29 @@ async function requestCompletion({ code, cursorOffset, language }) {
   };
 }
 
-function startWebServer() {
+function createDiscordPayload(language, code) {
+  const shareId = createShare({ code, language });
+  const editorUrl = makeEditorUrl(shareId);
+  const codeBlock = makeCodeBlock(language, code);
+  const suffix = editorUrl ? `\n\nIDE에서 수정: ${editorUrl}` : '';
+
+  if (codeBlock.length + suffix.length <= DISCORD_MESSAGE_LIMIT) {
+    return {
+      content: `${codeBlock}${suffix}`
+    };
+  }
+
+  return {
+    content: `코드가 길어서 파일로 첨부합니다.${suffix}`,
+    files: [
+      new AttachmentBuilder(Buffer.from(code, 'utf8'), {
+        name: `code.${language === 'cpp' ? 'cpp' : language}.txt`
+      })
+    ]
+  };
+}
+
+function startWebServer({ discordClient } = {}) {
   const app = express();
   const port = Number.parseInt(process.env.PORT || '3000', 10);
 
@@ -115,8 +147,26 @@ function startWebServer() {
     res.json({ ok: true });
   });
 
+  app.get('/s/:id', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  });
+
   app.get('/api/languages', (req, res) => {
     res.json({ languages: supportedLanguages });
+  });
+
+  app.get('/api/share/:id', (req, res) => {
+    const share = getShare(req.params.id);
+
+    if (!share) {
+      res.status(404).json({ error: '공유 코드를 찾을 수 없습니다.' });
+      return;
+    }
+
+    res.json({
+      code: share.code,
+      language: share.language
+    });
   });
 
   app.post('/api/format', async (req, res) => {
@@ -159,11 +209,64 @@ function startWebServer() {
     }
   });
 
+  app.post('/api/discord/send', async (req, res) => {
+    const language = normalizeLanguage(String(req.body.language || ''));
+    const channelId = String(req.body.channelId || '').trim();
+    const code = String(req.body.code || '');
+    const shouldFormat = req.body.format !== false;
+    const secret = String(req.headers['x-web-send-secret'] || req.body.secret || '');
+
+    if (process.env.WEB_SEND_SECRET && secret !== process.env.WEB_SEND_SECRET) {
+      res.status(401).json({ error: '전송 비밀번호가 올바르지 않습니다.' });
+      return;
+    }
+
+    if (!discordClient?.isReady()) {
+      res.status(503).json({ error: 'Discord 봇이 아직 준비되지 않았습니다.' });
+      return;
+    }
+
+    if (!language) {
+      res.status(400).json({ error: '지원하지 않는 언어입니다' });
+      return;
+    }
+
+    if (!channelId) {
+      res.status(400).json({ error: 'Discord 채널 ID를 입력해주세요.' });
+      return;
+    }
+
+    try {
+      const finalCode = shouldFormat ? await formatCode(code, language) : code;
+
+      if (finalCode === null) {
+        res.status(400).json({ error: '지원하지 않는 언어입니다' });
+        return;
+      }
+
+      const channel = await discordClient.channels.fetch(channelId);
+
+      if (!channel?.isTextBased()) {
+        res.status(400).json({ error: '메시지를 보낼 수 있는 채널이 아닙니다.' });
+        return;
+      }
+
+      const sentMessage = await channel.send(createDiscordPayload(language, finalCode));
+      res.json({
+        ok: true,
+        messageUrl: sentMessage.url
+      });
+    } catch (error) {
+      res.status(400).json({ error: summarizeError(error) });
+    }
+  });
+
   app.listen(port, () => {
     console.log(`Web IDE listening on port ${port}`);
   });
 }
 
 module.exports = {
+  createDiscordPayload,
   startWebServer
 };
