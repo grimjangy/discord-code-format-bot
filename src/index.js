@@ -7,10 +7,15 @@ const {
   Events,
   GatewayIntentBits
 } = require('discord.js');
-const { formatWithPrettier } = require('./formatters/prettierFormatter');
-const { formatPython } = require('./formatters/pythonFormatter');
-const { formatClang } = require('./formatters/clangFormatter');
-const { formatCSharp } = require('./formatters/csharpFormatter');
+const {
+  extractCode,
+  formatCode,
+  makeCodeBlock,
+  normalizeLanguage,
+  summarizeError,
+  supportedLanguages
+} = require('./formatService');
+const { startWebServer } = require('./webServer');
 
 const DISCORD_MESSAGE_LIMIT = 2000;
 const COMMAND_PATTERN = /^!fmt\s+([^\s]+)\s*([\s\S]*)$/;
@@ -24,17 +29,7 @@ const SLASH_COMMANDS = [
         description: '포맷할 코드 언어',
         type: ApplicationCommandOptionType.String,
         required: true,
-        choices: [
-          { name: 'JavaScript', value: 'js' },
-          { name: 'TypeScript', value: 'ts' },
-          { name: 'HTML', value: 'html' },
-          { name: 'CSS', value: 'css' },
-          { name: 'JSON', value: 'json' },
-          { name: 'Python', value: 'py' },
-          { name: 'C', value: 'c' },
-          { name: 'C++', value: 'cpp' },
-          { name: 'C#', value: 'cs' }
-        ]
+        choices: supportedLanguages.map(({ name, value }) => ({ name, value }))
       },
       {
         name: 'code',
@@ -43,89 +38,12 @@ const SLASH_COMMANDS = [
         required: true
       }
     ]
+  },
+  {
+    name: 'ide',
+    description: '브라우저에서 쓸 수 있는 코드 IDE 링크를 엽니다.'
   }
 ];
-
-const languageAliases = {
-  js: 'js',
-  javascript: 'js',
-  ts: 'ts',
-  typescript: 'ts',
-  html: 'html',
-  css: 'css',
-  json: 'json',
-  py: 'py',
-  python: 'py',
-  c: 'c',
-  cpp: 'cpp',
-  'c++': 'cpp',
-  cs: 'cs',
-  csharp: 'cs',
-  'c#': 'cs'
-};
-
-const codeBlockLanguage = {
-  js: 'js',
-  ts: 'ts',
-  html: 'html',
-  css: 'css',
-  json: 'json',
-  py: 'py',
-  c: 'c',
-  cpp: 'cpp',
-  cs: 'csharp'
-};
-
-function normalizeLanguage(language) {
-  return languageAliases[language.toLowerCase()];
-}
-
-function extractCode(rawCode) {
-  const trimmed = rawCode.trim();
-  const codeBlockMatch = trimmed.match(/^```[^\n`]*\n([\s\S]*?)\n?```$/);
-
-  if (codeBlockMatch) {
-    return codeBlockMatch[1];
-  }
-
-  return rawCode.replace(/^\n+/, '').replace(/\s+$/, '');
-}
-
-function summarizeError(error) {
-  const message = error?.message || String(error);
-  const compact = message.replace(/\s+/g, ' ').trim();
-
-  if (compact.length <= 300) {
-    return compact;
-  }
-
-  return `${compact.slice(0, 297)}...`;
-}
-
-function makeCodeBlock(language, code) {
-  const fenceLanguage = codeBlockLanguage[language] || '';
-  return `\`\`\`${fenceLanguage}\n${code}\n\`\`\``;
-}
-
-async function formatCode(code, language) {
-  if (['js', 'ts', 'html', 'css', 'json'].includes(language)) {
-    return formatWithPrettier(code, language);
-  }
-
-  if (language === 'py') {
-    return formatPython(code);
-  }
-
-  if (language === 'c' || language === 'cpp') {
-    return formatClang(code, language);
-  }
-
-  if (language === 'cs') {
-    return formatCSharp(code);
-  }
-
-  return null;
-}
 
 async function sendFormattedResult(message, language, formattedCode) {
   const codeBlock = makeCodeBlock(language, formattedCode);
@@ -237,7 +155,29 @@ client.on('messageCreate', async (message) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  if (!interaction.isChatInputCommand() || interaction.commandName !== 'fmt') {
+  if (!interaction.isChatInputCommand()) {
+    return;
+  }
+
+  if (interaction.commandName === 'ide') {
+    const ideUrl = process.env.PUBLIC_IDE_URL || process.env.RENDER_EXTERNAL_URL;
+
+    if (!ideUrl) {
+      await interaction.reply({
+        content: 'IDE URL이 아직 설정되지 않았습니다. Render Web Service 배포 후 PUBLIC_IDE_URL을 설정해주세요.',
+        ephemeral: true
+      });
+      return;
+    }
+
+    await interaction.reply({
+      content: `웹 IDE 열기: ${ideUrl}`,
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (interaction.commandName !== 'fmt') {
     return;
   }
 
@@ -287,4 +227,5 @@ if (!token) {
   process.exit(1);
 }
 
+startWebServer();
 client.login(token);

@@ -1,6 +1,7 @@
 # Discord Code Format Bot
 
 Discord 채널에서 `!fmt <language>` 또는 `/fmt` 명령어로 코드를 포맷해 주는 discord.js v14 기반 봇입니다.
+웹 IDE도 함께 제공하며, `/ide` 명령어로 브라우저에서 열 수 있습니다.
 
 ## 지원 언어
 
@@ -32,6 +33,10 @@ cp .env.example .env
 ```env
 DISCORD_TOKEN=your_discord_bot_token_here
 FORMAT_PRINT_WIDTH=80
+PUBLIC_IDE_URL=https://your-render-service.onrender.com
+COMPLETION_API_URL=
+COMPLETION_API_KEY=
+COMPLETION_MODEL=
 ```
 
 Discord Developer Portal에서 봇의 Message Content Intent를 활성화해야 `!fmt` 메시지를 읽을 수 있습니다.
@@ -57,12 +62,19 @@ docker run --env-file .env discord-code-format-bot
 
 ## Render에 배포
 
-이 저장소에는 `render.yaml`과 `Dockerfile`이 포함되어 있어 Render의 Background Worker로 배포할 수 있습니다.
+이 저장소에는 `render.yaml`과 `Dockerfile`이 포함되어 있어 Render의 Web Service로 배포할 수 있습니다.
+Web Service는 Discord 봇과 웹 IDE를 같은 프로세스에서 실행합니다.
 
 1. GitHub에 이 프로젝트를 올립니다.
 2. Render에서 New > Blueprint를 선택하고 저장소를 연결합니다.
-3. Environment Variables에 `DISCORD_TOKEN`을 추가합니다.
+3. Environment Variables에 `DISCORD_TOKEN`, `FORMAT_PRINT_WIDTH`, `PUBLIC_IDE_URL`을 추가합니다.
 4. 배포가 끝난 뒤 로그에 `Logged in as ...`가 보이면 준비 완료입니다.
+
+`PUBLIC_IDE_URL`에는 Render 서비스 URL을 넣습니다. 예:
+
+```env
+PUBLIC_IDE_URL=https://discord-code-format-bot.onrender.com
+```
 
 ## Railway/Fly.io에 배포
 
@@ -123,6 +135,21 @@ public class Hello{public void Run(){Console.WriteLine("hello");}}
 ```text
 /fmt language: JavaScript code: if(true){console.log("hello")}
 ```
+
+웹 IDE를 열려면 `/ide`를 입력합니다. IDE에서는 Monaco Editor 기반 문법 강조, 기본 자동완성, 포맷 버튼, API 자동완성 버튼을 사용할 수 있습니다.
+
+API 자동완성 버튼은 `COMPLETION_API_URL`을 설정했을 때 동작합니다. 해당 API는 다음 JSON을 받을 수 있어야 합니다.
+
+```json
+{
+  "language": "js",
+  "code": "const a = ",
+  "cursorOffset": 10,
+  "model": "optional-model-name"
+}
+```
+
+응답은 `completion`, `text`, 또는 OpenAI 호환 `choices[0].message.content` 중 하나를 포함하면 됩니다.
 
 ## 외부 도구
 

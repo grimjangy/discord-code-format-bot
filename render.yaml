@@ -1,7 +1,11 @@
 services:
-  - type: worker
+  - type: web
     name: discord-code-format-bot
     runtime: docker
     envVars:
       - key: DISCORD_TOKEN
         sync: false
+      - key: PUBLIC_IDE_URL
+        sync: false
+      - key: FORMAT_PRINT_WIDTH
+        value: "60"
