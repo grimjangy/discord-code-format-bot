@@ -1,6 +1,6 @@
 const express = require('express');
 const path = require('node:path');
-const { AttachmentBuilder } = require('discord.js');
+const { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const {
   extractCode,
   formatCode,
@@ -121,16 +121,24 @@ function createDiscordPayload(language, code) {
   const shareId = createShare({ code, language });
   const editorUrl = makeEditorUrl(shareId);
   const codeBlock = makeCodeBlock(language, code);
-  const suffix = editorUrl ? `\n\nIDE에서 수정: ${editorUrl}` : '';
+  const components = editorUrl
+    ? [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setLabel('IDE에서 수정').setStyle(ButtonStyle.Link).setURL(editorUrl)
+        )
+      ]
+    : [];
 
-  if (codeBlock.length + suffix.length <= DISCORD_MESSAGE_LIMIT) {
+  if (codeBlock.length <= DISCORD_MESSAGE_LIMIT) {
     return {
-      content: `${codeBlock}${suffix}`
+      content: codeBlock,
+      components
     };
   }
 
   return {
-    content: `코드가 길어서 파일로 첨부합니다.${suffix}`,
+    content: '코드가 길어서 파일로 첨부합니다.',
+    components,
     files: [
       new AttachmentBuilder(Buffer.from(code, 'utf8'), {
         name: `code.${language === 'cpp' ? 'cpp' : language}.txt`

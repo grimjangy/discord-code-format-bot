@@ -151,8 +151,8 @@ IDE에서는 Monaco Editor 기반 문법 강조, 자동 줄바꿈, 언어별 내
 자동완성 사전은 `src/completionData.js`에서 관리하며, 웹 IDE는 `/api/completions`로 같은 사전을 받아 사용합니다.
 
 사이트에서 Discord로 보내려면 IDE 상단의 `Discord channel ID`에 보낼 채널 ID를 넣고 `Send`를 누릅니다.
-코드는 전송 전에 자동 포맷되며, Discord 메시지에는 다시 IDE에서 열어 수정할 수 있는 링크가 함께 붙습니다.
-봇이 `/fmt` 또는 `!fmt`로 만든 포맷 결과에도 같은 수정 링크가 붙습니다.
+코드는 전송 전에 자동 포맷되며, Discord 메시지에는 다시 IDE에서 열어 수정할 수 있는 버튼이 함께 붙습니다.
+봇이 `/fmt` 또는 `!fmt`로 만든 포맷 결과에도 같은 수정 버튼이 붙습니다.
 Discord에서 `/ide`를 입력해 사이트를 열면, 해당 채널 ID가 URL에 포함되어 IDE의 채널 입력칸에 자동으로 들어갑니다.
 
 채널 ID는 Discord 개발자 모드를 켠 뒤 채널을 우클릭해서 복사할 수 있습니다.
