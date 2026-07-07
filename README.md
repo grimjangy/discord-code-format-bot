@@ -150,10 +150,12 @@ IDE에서는 Monaco Editor 기반 문법 강조, 자동 줄바꿈, 언어별 내
 사이트에서 Discord로 보내려면 IDE 상단의 `Discord channel ID`에 보낼 채널 ID를 넣고 `Send`를 누릅니다.
 코드는 전송 전에 자동 포맷되며, Discord 메시지에는 다시 IDE에서 열어 수정할 수 있는 링크가 함께 붙습니다.
 봇이 `/fmt` 또는 `!fmt`로 만든 포맷 결과에도 같은 수정 링크가 붙습니다.
+Discord에서 `/ide`를 입력해 사이트를 열면, 해당 채널 ID가 URL에 포함되어 IDE의 채널 입력칸에 자동으로 들어갑니다.
 
 채널 ID는 Discord 개발자 모드를 켠 뒤 채널을 우클릭해서 복사할 수 있습니다.
 
-`WEB_SEND_SECRET`을 설정한 경우 IDE 상단의 `Send secret`에도 같은 값을 입력해야 전송됩니다.
+`WEB_SEND_SECRET`은 공개 사이트에서 아무나 봇으로 메시지를 보내지 못하게 막는 전송 비밀번호입니다.
+설정한 경우 IDE 상단의 `Send secret`에도 같은 값을 입력해야 전송됩니다. 설정하지 않으면 `Send secret`은 비워둬도 됩니다.
 
 AI 기반 자동완성 API도 남겨둘 수 있습니다. `OPENAI_API_KEY`를 설정하면 `/api/complete`가 OpenAI Responses API로 동작합니다. 현재 웹 화면의 `Suggest`는 AI 없이 내장 사전/스니펫을 사용합니다.
 

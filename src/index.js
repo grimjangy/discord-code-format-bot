@@ -129,9 +129,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 
   if (interaction.commandName === 'ide') {
-    const ideUrl = process.env.PUBLIC_IDE_URL || process.env.RENDER_EXTERNAL_URL;
+    const baseIdeUrl = process.env.PUBLIC_IDE_URL || process.env.RENDER_EXTERNAL_URL;
 
-    if (!ideUrl) {
+    if (!baseIdeUrl) {
       await interaction.reply({
         content: 'IDE URL이 아직 설정되지 않았습니다. Render Web Service 배포 후 PUBLIC_IDE_URL을 설정해주세요.',
         ephemeral: true
@@ -139,8 +139,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    const ideUrl = new URL(baseIdeUrl);
+    ideUrl.searchParams.set('channel', interaction.channelId);
+
     await interaction.reply({
-      content: `웹 IDE 열기: ${ideUrl}`,
+      content: `웹 IDE 열기: ${ideUrl.toString()}`,
       ephemeral: true
     });
     return;

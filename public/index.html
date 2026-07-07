@@ -730,6 +730,11 @@
         return true;
       }
 
+      function initialChannelId() {
+        const channelFromUrl = new URLSearchParams(window.location.search).get('channel');
+        return channelFromUrl || localStorage.getItem('autoformat.channelId') || '';
+      }
+
       require.config({
         paths: {
           vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs'
@@ -741,7 +746,7 @@
         await loadCompletionData();
         registerCompletionProviders();
 
-        channelIdInput.value = localStorage.getItem('autoformat.channelId') || '';
+        channelIdInput.value = initialChannelId();
         sendSecretInput.value = localStorage.getItem('autoformat.sendSecret') || '';
 
         editor = monaco.editor.create(document.querySelector('#editor'), {
