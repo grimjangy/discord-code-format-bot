@@ -111,6 +111,10 @@ function startWebServer() {
   app.use(express.json({ limit: '2mb' }));
   app.use(express.static(path.join(__dirname, '..', 'public')));
 
+  app.get('/healthz', (req, res) => {
+    res.json({ ok: true });
+  });
+
   app.get('/api/languages', (req, res) => {
     res.json({ languages: supportedLanguages });
   });

@@ -222,10 +222,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 const token = process.env.DISCORD_TOKEN;
 
-if (!token) {
-  console.error('.env 파일에 DISCORD_TOKEN을 설정해주세요.');
-  process.exit(1);
-}
-
 startWebServer();
-client.login(token);
+
+if (!token) {
+  console.error('DISCORD_TOKEN이 없어 Discord 봇 로그인은 건너뜁니다. 웹 IDE만 실행됩니다.');
+} else {
+  client.login(token).catch((error) => {
+    console.error('Discord 봇 로그인에 실패했습니다:', summarizeError(error));
+  });
+}
