@@ -8,6 +8,7 @@ const {
   summarizeError,
   supportedLanguages
 } = require('./formatService');
+const { completeFromDictionary } = require('./completionDictionary');
 const { createShare, getShare, makeEditorUrl } = require('./shareStore');
 
 const DISCORD_MESSAGE_LIMIT = 2000;
@@ -81,7 +82,7 @@ async function requestCompletion({ code, cursorOffset, language }) {
       return requestOpenAICompletion({ code, cursorOffset, language });
     }
 
-    return { completion: '', message: 'OPENAI_API_KEY 또는 COMPLETION_API_URL을 설정해주세요.' };
+    return completeFromDictionary({ code, cursorOffset, language });
   }
 
   const headers = {

@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/index.js",
-    "check": "node --check src/index.js && node --check src/config.js && node --check src/formatService.js && node --check src/shareStore.js && node --check src/webServer.js && node --check src/formatters/prettierFormatter.js && node --check src/formatters/pythonFormatter.js && node --check src/formatters/clangFormatter.js && node --check src/formatters/csharpFormatter.js"
+    "check": "node --check src/index.js && node --check src/completionDictionary.js && node --check src/config.js && node --check src/formatService.js && node --check src/shareStore.js && node --check src/webServer.js && node --check src/formatters/prettierFormatter.js && node --check src/formatters/pythonFormatter.js && node --check src/formatters/clangFormatter.js && node --check src/formatters/csharpFormatter.js"
   },
   "dependencies": {
     "discord.js": "^14.15.3",
