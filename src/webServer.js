@@ -9,6 +9,7 @@ const {
   supportedLanguages
 } = require('./formatService');
 const { completeFromDictionary } = require('./completionDictionary');
+const { completionData } = require('./completionData');
 const { createShare, getShare, makeEditorUrl } = require('./shareStore');
 
 const DISCORD_MESSAGE_LIMIT = 2000;
@@ -154,6 +155,10 @@ function startWebServer({ discordClient } = {}) {
 
   app.get('/api/languages', (req, res) => {
     res.json({ languages: supportedLanguages });
+  });
+
+  app.get('/api/completions', (req, res) => {
+    res.json({ completions: completionData });
   });
 
   app.get('/api/share/:id', (req, res) => {

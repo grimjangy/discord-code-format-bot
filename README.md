@@ -145,6 +145,7 @@ public class Hello{public void Run(){Console.WriteLine("hello");}}
 
 IDE에서는 Monaco Editor 기반 문법 강조, 자동 줄바꿈, 언어별 내장 사전/스니펫 자동완성, 포맷, 복사, Discord 전송을 사용할 수 있습니다.
 `Suggest` 버튼이나 `Ctrl/Cmd + Space`로 자동완성 목록을 열 수 있습니다.
+자동완성 사전은 `src/completionData.js`에서 관리하며, 웹 IDE는 `/api/completions`로 같은 사전을 받아 사용합니다.
 
 사이트에서 Discord로 보내려면 IDE 상단의 `Discord channel ID`에 보낼 채널 ID를 넣고 `Send`를 누릅니다.
 코드는 전송 전에 자동 포맷되며, Discord 메시지에는 다시 IDE에서 열어 수정할 수 있는 링크가 함께 붙습니다.

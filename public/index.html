@@ -165,7 +165,7 @@
       let languages = [];
       let completionProviderDisposables = [];
 
-      const completionData = {
+      let completionData = {
         js: {
           words: [
             'Array',
@@ -610,6 +610,15 @@
           .join('');
       }
 
+      async function loadCompletionData() {
+        const response = await fetch('/api/completions');
+        const data = await response.json();
+
+        if (data.completions) {
+          completionData = data.completions;
+        }
+      }
+
       function completionItemsFor(languageValue) {
         const data = completionData[languageValue] || { words: [], snippets: [] };
         const wordItems = data.words.map((word) => ({
@@ -729,6 +738,7 @@
 
       require(['vs/editor/editor.main'], async () => {
         await loadLanguages();
+        await loadCompletionData();
         registerCompletionProviders();
 
         channelIdInput.value = localStorage.getItem('autoformat.channelId') || '';
